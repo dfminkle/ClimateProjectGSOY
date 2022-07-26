@@ -1,0 +1,92 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Load libraries and CSV
+```{r}
+library(tidyr)
+library(tidyverse)
+
+df = read.csv('df_moi_date_range_20y_sub.csv')
+```
+
+Group by state and year
+
+```{r}
+#Create year column
+df$YEAR = lubridate::year(as.Date(df$DATE, format ="%Y-%m-%d"))
+
+#Convert TAVG to Fahrenheit
+df$TAVG = df$TAVG*(9/5) + 32
+
+
+#Group by state and year
+df_state_year = df %>% group_by(COUNTRY_CODE_2_CHAR, state, YEAR) %>% select(COUNTRY_CODE_2_CHAR, state, YEAR, TAVG) %>% filter(COUNTRY_CODE_2_CHAR == 'US') %>% 
+  summarise(Average_Temp = mean(TAVG, na.rm = TRUE))
+
+#Create column for number of years since start date, in this case 2002
+
+start_date = 2002
+df_state_year[paste('YEARS_SINCE_', start_date)] = df_state_year$YEAR - start_date
+
+
+```
+
+Perform LM
+
+```{r}
+
+lmodels = df_state_year %>% 
+  select(state, Average_Temp, `YEARS_SINCE_ 2002`) %>%
+  group_by(state) %>%
+  nest() %>%
+  mutate(models = map(data, ~lm(Average_Temp ~ `YEARS_SINCE_ 2002`, data = .)))
+
+lmodels_broom = df_state_year %>% 
+  select(state, Average_Temp, `YEARS_SINCE_ 2002`) %>%
+  group_by(state) %>%
+  group_modify(~ broom::tidy(lm(Average_Temp ~ `YEARS_SINCE_ 2002`, data = .))) %>%
+  filter(term == '`YEARS_SINCE_ 2002`')
+
+lmodels_broom
+```
+
+
+Check residuals on the models
+
+```{r, results='asis'}
+
+for (i in (1:length(lmodels$state))){
+  cat("### Section ", i, "\n")
+  cat("\n")
+  print(plot(lmodels$models[[i]], which = 2, sub = lmodels$state[i]))
+  cat("\n")
+}
+
+# From looking at this, I feel comfortable using p-values as a guide for true signal. I hesitate to use true significance here because in some of these plots, the data do not look normal. However, mot of the plots show a fairly normal Q-Q plot. We can proceed with caution here. 
+
+```
+
+Join slopes and p-values back to dataframe. 
+
+```{r}
+# Rename columns
+
+colnames(lmodels_broom)[3] = 'Deg_F_per_year_since_2002 (slope)' 
+
+#Merge columns
+
+df_joined = left_join(df, lmodels_broom[, c(1,3,6)], by = 'state') #Only select state, slope, and p.value
+
+#Export CSV 
+
+write.csv(df_joined, file = 'df_moi_date_range_20y_sub.csv')
+```
+
+
+
+
+
+
+
