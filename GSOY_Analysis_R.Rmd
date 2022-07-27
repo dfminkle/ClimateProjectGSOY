@@ -18,7 +18,7 @@ Group by state and year
 df$YEAR = lubridate::year(as.Date(df$DATE, format ="%Y-%m-%d"))
 
 #Convert TAVG to Fahrenheit
-df$TAVG = df$TAVG*(9/5) + 32
+df$TAVG_F = df$TAVG*(9/5) + 32
 
 
 #Group by state and year
@@ -28,7 +28,7 @@ df_state_year = df %>% group_by(COUNTRY_CODE_2_CHAR, state, YEAR) %>% select(COU
 #Create column for number of years since start date, in this case 2002
 
 start_date = 2002
-df_state_year[paste('YEARS_SINCE_', start_date)] = df_state_year$YEAR - start_date
+df_state_year[paste0('YEARS_SINCE_', start_date)] = df_state_year$YEAR - start_date
 
 
 ```
@@ -38,16 +38,16 @@ Perform LM
 ```{r}
 
 lmodels = df_state_year %>% 
-  select(state, Average_Temp, `YEARS_SINCE_ 2002`) %>%
+  select(state, Average_Temp, YEARS_SINCE_2002) %>%
   group_by(state) %>%
   nest() %>%
-  mutate(models = map(data, ~lm(Average_Temp ~ `YEARS_SINCE_ 2002`, data = .)))
+  mutate(models = map(data, ~lm(Average_Temp ~ YEARS_SINCE_2002, data = .)))
 
 lmodels_broom = df_state_year %>% 
-  select(state, Average_Temp, `YEARS_SINCE_ 2002`) %>%
+  select(state, Average_Temp, YEARS_SINCE_2002) %>%
   group_by(state) %>%
-  group_modify(~ broom::tidy(lm(Average_Temp ~ `YEARS_SINCE_ 2002`, data = .))) %>%
-  filter(term == '`YEARS_SINCE_ 2002`')
+  group_modify(~ broom::tidy(lm(Average_Temp ~ YEARS_SINCE_2002, data = .))) %>%
+  filter(term == 'YEARS_SINCE_2002')
 
 lmodels_broom
 ```
@@ -85,6 +85,11 @@ write.csv(df_joined, file = 'df_moi_date_range_20y_sub.csv')
 ```
 
 
+Explore df_joined
+
+```{r}
+head(df_joined)
+```
 
 
 
